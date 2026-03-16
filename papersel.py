@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-papersel — A minimalist wallpaper browser and setter for Omarchy/Hyprland.
+papersel -- A minimalist wallpaper browser and setter for Omarchy/Hyprland.
 Built with GTK4 + libadwaita. Wayland-native via hyprpaper IPC.
 """
 
@@ -41,7 +41,7 @@ THUMB_SIZE = 200
 def load_config() -> dict:
     """
     Read the saved config from disk.
-    Returns an empty dict if the file doesn't exist yet — that's fine,
+    Returns an empty dict if the file doesn't exist yet -- that's fine,
     the app will use its defaults.
     """
     if CONFIG_FILE.exists():
@@ -49,7 +49,7 @@ def load_config() -> dict:
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
         except (json.JSONDecodeError, OSError):
-            # File is corrupted or unreadable — start fresh
+            # File is corrupted or unreadable -- start fresh
             return {}
     return {}
 
@@ -71,7 +71,7 @@ def set_wallpaper_hyprpaper(path: str) -> bool:
     Set the wallpaper on Hyprland using hyprpaper IPC.
 
     How it works:
-      1. We first 'preload' the image — this tells hyprpaper to load it into memory.
+      1. We first 'preload' the image -- this tells hyprpaper to load it into memory.
       2. Then we tell hyprpaper to set it on ALL monitors (empty string = all).
       3. Finally we unload any previously preloaded image to free memory.
 
@@ -95,7 +95,7 @@ def set_wallpaper_hyprpaper(path: str) -> bool:
 
 def set_wallpaper_swww(path: str) -> bool:
     """
-    Set the wallpaper using swww — supports smooth animated transitions.
+    Set the wallpaper using swww -- supports smooth animated transitions.
     Falls back automatically if hyprpaper is not available.
     """
     try:
@@ -181,7 +181,7 @@ class WallpaperTile(Gtk.Box):
         gesture.connect("released", lambda g, n, x, y: on_click(self.image_path))
         self.add_controller(gesture)
 
-        # Visual hover effect — highlight on mouse-over
+        # Visual hover effect -- highlight on mouse-over
         motion = Gtk.EventControllerMotion.new()
         motion.connect("enter", lambda *_: self.add_css_class("tile-hover"))
         motion.connect("leave", lambda *_: self.remove_css_class("tile-hover"))
@@ -223,7 +223,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
     def _build_ui(self):
         """Assemble all the widgets into the window layout."""
 
-        # Outer vertical box — everything stacks top to bottom
+        # Outer vertical box -- everything stacks top to bottom
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_content(root)
 
@@ -237,7 +237,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
         open_btn.connect("clicked", self._on_open_folder)
         header.pack_start(open_btn)
 
-        # Title widget — shows app name + current folder path
+        # Title widget -- shows app name + current folder path
         title_widget = Adw.WindowTitle(
             title="papersel",
             subtitle=str(self.wallpaper_dir)
@@ -297,7 +297,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
         self.selected_label.add_css_class("caption")
         action_bar.pack_start(self.selected_label)
 
-        # "Set Wallpaper" button — the main action
+        # "Set Wallpaper" button -- the main action
         self.set_btn = Gtk.Button(label="Set Wallpaper")
         self.set_btn.add_css_class("suggested-action")  # Highlighted/accent colour
         self.set_btn.set_sensitive(False)               # Disabled until something is selected
@@ -369,7 +369,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
         self.set_btn.set_sensitive(False)
         self.selected_label.set_text("No wallpaper selected")
 
-        # Find image files — we sort them alphabetically for predictable order
+        # Find image files -- we sort them alphabetically for predictable order
         images = sorted([
             str(p) for p in self.wallpaper_dir.iterdir()
             if p.suffix.lower() in SUPPORTED_EXTENSIONS
@@ -439,7 +439,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
             self.config["last_wallpaper"] = self.selected_path
             save_config(self.config)
         else:
-            toast.set_title("Could not set wallpaper — is hyprpaper or swww running?")
+            toast.set_title("Could not set wallpaper -- is hyprpaper or swww running?")
             toast.set_timeout(4)
 
         # ToastOverlay must wrap our content to display toasts
@@ -478,7 +478,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
             initial = Gio.File.new_for_path(str(self.wallpaper_dir))
             dialog.set_initial_folder(initial)
 
-        # select_folder is async — the callback fires when the user is done
+        # select_folder is async -- the callback fires when the user is done
         dialog.select_folder(self, None, self._on_folder_chosen)
 
     def _on_folder_chosen(self, dialog, result):
@@ -493,7 +493,7 @@ class PaperSelWindow(Adw.ApplicationWindow):
                 save_config(self.config)
                 self._scan_wallpapers()
         except GLib.Error:
-            pass  # User cancelled — do nothing
+            pass  # User cancelled -- do nothing
 
 
 # ─── Application entry point ──────────────────────────────────────────────────
