@@ -33,7 +33,7 @@ CONFIG_FILE = Path.home() / ".config" / "papersel" / "config.json"
 DEFAULT_WALLPAPER_DIR = Path.home() / "Pictures" / "wallpapers"
 
 # Thumbnail size shown in the grid (pixels)
-THUMB_SIZE = 200
+THUMB_SIZE = 500
 
 
 # ─── Settings helper ─────────────────────────────────────────────────────────
@@ -73,17 +73,12 @@ def set_wallpaper_hyprpaper(path: str) -> bool:
     Set the wallpaper on Hyprland using hyprpaper IPC.
 
     How it works:
-      1. We first 'preload' the image -- this tells hyprpaper to load it into memory.
-      2. Then we tell hyprpaper to set it on ALL monitors (empty string = all).
-      3. Finally we unload any previously preloaded image to free memory.
+      1. Tell hyprpaper to set the wallpaper on ALL monitors (empty monitor = all).
+      2. Format: [monitor],[path],[fit_mode]
 
     Returns True if successful, False if something went wrong.
     """
     try:
-        subprocess.run(
-            ["hyprctl", "hyprpaper", "preload", path],
-            check=True, capture_output=True, timeout=5
-        )
         subprocess.run(
             ["hyprctl", "hyprpaper", "wallpaper", f",{path}"],
             check=True, capture_output=True, timeout=5
@@ -134,7 +129,7 @@ def load_thumbnail(image_path: str) -> GdkPixbuf.Pixbuf | None:
             image_path,
             width=THUMB_SIZE,
             height=THUMB_SIZE,
-            preserve_aspect_ratio=True
+            preserve_aspect_ratio=False  # Fill the square completely
         )
         return pixbuf
     except GLib.Error:
@@ -161,7 +156,12 @@ class WallpaperTile(Gtk.Box):
         # ── Thumbnail image ──────────────────────────────────────────────────
         pixbuf = load_thumbnail(image_path)
         if pixbuf:
-            image = Gtk.Image.new_from_pixbuf(pixbuf)
+            # Scale to fit the tile while preserving aspect ratio
+            scaled = pixbuf.scale_simple(
+                THUMB_SIZE, THUMB_SIZE,
+                GdkPixbuf.InterpType.BILINEAR
+            )
+            image = Gtk.Image.new_from_pixbuf(scaled)
         else:
             # Show a placeholder icon if the image failed to load
             image = Gtk.Image.new_from_icon_name("image-missing")
@@ -220,8 +220,9 @@ class PaperSelWindow(Adw.ApplicationWindow):
         self._build_ui()
         self._apply_css()
 
-        # Load wallpapers after the window is shown (feels snappier)
-        GLib.idle_add(self._scan_wallpapers)
+        # Start with empty state - user must select a folder first
+        self.scroll.set_visible(False)
+        self.empty_status.set_visible(True)
 
     # ── UI construction ──────────────────────────────────────────────────────
 
