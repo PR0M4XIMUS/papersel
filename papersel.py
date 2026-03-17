@@ -48,8 +48,7 @@ def load_config() -> dict:
         try:
             with open(CONFIG_FILE, "r") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            # File is corrupted or unreadable -- start fresh
+        except (json.JSONDecodeError, OSError, IOError):
             return {}
     return {}
 
@@ -59,9 +58,12 @@ def save_config(data: dict) -> None:
     Write the config dict to disk.
     We create the directory first if it doesn't exist.
     """
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+    try:
+        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(data, f, indent=2)
+    except OSError:
+        pass
 
 
 # ─── Wallpaper setter ─────────────────────────────────────────────────────────
@@ -78,18 +80,16 @@ def set_wallpaper_hyprpaper(path: str) -> bool:
     Returns True if successful, False if something went wrong.
     """
     try:
-        # Step 1: preload the new wallpaper into hyprpaper's memory
         subprocess.run(
             ["hyprctl", "hyprpaper", "preload", path],
             check=True, capture_output=True, timeout=5
         )
-        # Step 2: apply it to all monitors
         subprocess.run(
             ["hyprctl", "hyprpaper", "wallpaper", f",{path}"],
             check=True, capture_output=True, timeout=5
         )
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return False
 
 
@@ -104,7 +104,7 @@ def set_wallpaper_swww(path: str) -> bool:
             check=True, capture_output=True, timeout=10
         )
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return False
 
 
@@ -134,10 +134,10 @@ def load_thumbnail(image_path: str) -> GdkPixbuf.Pixbuf | None:
             image_path,
             width=THUMB_SIZE,
             height=THUMB_SIZE,
-            preserve_aspect_ratio=True  # Don't squish the image
+            preserve_aspect_ratio=True
         )
         return pixbuf
-    except Exception:
+    except GLib.Error:
         return None
 
 
@@ -152,6 +152,7 @@ class WallpaperTile(Gtk.Box):
     def __init__(self, image_path: str, on_click):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.image_path = image_path
+        self.on_click = on_click
         self.set_margin_start(4)
         self.set_margin_end(4)
         self.set_margin_top(4)
@@ -177,8 +178,8 @@ class WallpaperTile(Gtk.Box):
 
         # ── Make the whole tile clickable ────────────────────────────────────
         gesture = Gtk.GestureClick.new()
-        # When the user clicks, call on_click and pass our path
-        gesture.connect("released", lambda g, n, x, y: on_click(self.image_path))
+        gesture.connect("released", self._on_released)
+        self.image_path = image_path
         self.add_controller(gesture)
 
         # Visual hover effect -- highlight on mouse-over
@@ -188,6 +189,10 @@ class WallpaperTile(Gtk.Box):
         self.add_controller(motion)
 
         self.add_css_class("wallpaper-tile")
+
+    def _on_released(self, gesture, n, x, y):
+        """Handle click events on the tile."""
+        self.on_click(self.image_path)
 
 
 # ─── Main application window ──────────────────────────────────────────────────
@@ -361,7 +366,6 @@ class PaperSelWindow(Adw.ApplicationWindow):
         Find all image files in the selected folder and populate the grid.
         Returns False so GLib.idle_add doesn't call this repeatedly.
         """
-        # Clear whatever tiles are currently showing
         while child := self.grid.get_first_child():
             self.grid.remove(child)
 
@@ -369,11 +373,13 @@ class PaperSelWindow(Adw.ApplicationWindow):
         self.set_btn.set_sensitive(False)
         self.selected_label.set_text("No wallpaper selected")
 
-        # Find image files -- we sort them alphabetically for predictable order
-        images = sorted([
-            str(p) for p in self.wallpaper_dir.iterdir()
-            if p.suffix.lower() in SUPPORTED_EXTENSIONS
-        ]) if self.wallpaper_dir.exists() else []
+        try:
+            images = sorted([
+                str(p) for p in self.wallpaper_dir.iterdir()
+                if p.suffix.lower() in SUPPORTED_EXTENSIONS
+            ]) if self.wallpaper_dir.exists() else []
+        except (OSError, PermissionError):
+            images = []
 
         if not images:
             # Show the empty state placeholder instead of a blank grid
@@ -488,11 +494,10 @@ class PaperSelWindow(Adw.ApplicationWindow):
             if folder:
                 self.wallpaper_dir = Path(folder.get_path())
                 self.title_widget.set_subtitle(str(self.wallpaper_dir))
-                # Save the choice so it's remembered next launch
                 self.config["wallpaper_dir"] = str(self.wallpaper_dir)
                 save_config(self.config)
                 self._scan_wallpapers()
-        except GLib.Error:
+        except (GLib.Error, TypeError):
             pass  # User cancelled -- do nothing
 
 
